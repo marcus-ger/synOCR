@@ -3672,9 +3672,10 @@ while read -r input ; do
         fi
     fi
 
-    # Beep:
-    if [ "${dsmbeepnotify}" = "on" ] && [ "${synOCR_user}" = root ] ; then
-        echo 2 > /dev/ttyS1 #short beep
+    # Beep. /dev/ttyS1 is root-only; the setuid helper writes it for every caller,
+    # including a Task Scheduler run that is already root.
+    if [ "${dsmbeepnotify}" = "on" ]; then
+        synocr_beep_via_helper
     fi
 
     # individual apprise notification:

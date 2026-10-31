@@ -9,6 +9,7 @@ synOCR braucht trotzdem Dinge, die dieser User allein nicht darf:
 - in die Gruppen `docker` und `administrators` aufgenommen werden
 - Besitz von `/var/run/docker.sock` auf `root:docker` setzen
 - verschlüsselte Freigaben auflisten (`synoshare --enum ENC`)
+- einen kurzen System-Piep auslösen (`echo 2 > /dev/ttyS1`)
 
 Früher musste der User nach der Installation **einmal** `synOCR-start.sh` als root starten. Genau das ersetzt der Helper: der Paket-User löst eine **enge, fest verdrahtete** Root-Aktion aus, ohne SSH und ohne freien Root-Shell.
 
@@ -40,7 +41,7 @@ Install / GUI / synOCR-start.sh  (User synOCR)
         │
         │  nur wenn Helper existiert und setuid hat (-u)
         ▼
-synocr-helper-<arch>  selfheal | enc-enum
+synocr-helper-<arch>  selfheal | enc-enum | beep
         │  setuid(0), Umgebung leeren, festes PATH
         │  öffnet synocr-heal.sh, fexecve
         ▼
@@ -49,6 +50,7 @@ synocr-helper-<arch>  selfheal | enc-enum
         ▼
 selfheal  →  docker-Gruppe, docker.sock, administrators, optionale Dateirechte
 enc-enum  →  synoshare --enum ENC  (stdout)
+beep      →  echo 2 > /dev/ttyS1
 ```
 
 Wer ruft wann auf:
@@ -60,11 +62,12 @@ Wer ruft wann auf:
 | `APP/ui/synOCR-start.sh` | `selfheal` | OCR-Lauf (ohne `start`/`stop`), DSM 7, nicht root, Gruppen/Sock fehlen |
 | `APP/ui/GUI_main.sh` | `selfheal` | gleiche Prüfung vor der Statusanzeige |
 | `APP/ui/synOCR-start.sh` (Monitoring) | `enc-enum` | verschlüsselte INPUTDIR-Freigaben erkennen |
-| Aufgabenplaner als **root** | — | kein Helper; `synOCR-start.sh` heilt direkt (`synogroupmod*`) |
+| `APP/ui/synOCR.sh` | `beep` | `dsmbeepnotify=on`, einmal pro fertigem PDF, auch wenn der Lauf selbst root ist |
+| Aufgabenplaner als **root** | `beep` (sonst kein Helper) | Heal weiter direkt (`synogroupmod*`); der Piep geht trotzdem über den Helper |
 
 `synOCR-start.sh start` (Paketstart, Monitoring-Button) heilt nicht. Die Gruppenmitgliedschaft gilt nur für Prozesse, die **danach** neu starten. Deshalb sitzt der Heal in `postinst` und `postupgrade`, bevor DSM den Dienst startet. Fehlt das setuid-Bit dort noch, heilt der nächste GUI-Aufruf oder ein OCR-Lauf; der Paketdienst muss danach neu gestartet werden.
 
-## Die zwei Verben
+## Die drei Verben
 
 Der C-Helper akzeptiert **genau ein Argument**, ohne weitere Parameter:
 
@@ -72,6 +75,7 @@ Der C-Helper akzeptiert **genau ein Argument**, ohne weitere Parameter:
 |------|--------|
 | `selfheal` | docker-Gruppe anlegen falls nötig, `chown root:docker` auf den Socket, User `synOCR` in `docker` und `administrators`, optional `python3_env`/`synOCR.sqlite`-Rechte. Idempotent. Log: `log/selfheal.log` |
 | `enc-enum` | `synoshare --enum ENC` — Liste verschlüsselter Share-Namen. Für den Inotify-Start, wenn INPUTDIR noch nicht gemountet ist |
+| `beep` | `echo 2 > /dev/ttyS1` — kurzer System-Piep. Kein Log. Fehlt das Gerät, ist das kein Fehler |
 
 Alles andere wird abgelehnt. Es gibt **keinen** Weg, über den Helper ein beliebiges Skript oder `docker run` zu starten.
 

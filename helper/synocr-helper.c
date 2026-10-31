@@ -14,6 +14,7 @@
  * Allowed verbs (no extra arguments):
  *   selfheal   – docker/administrators heal script
  *   enc-enum   – list encrypted shared folder names (synoshare --enum ENC)
+ *   beep       – short system beep (write 2 to /dev/ttyS1)
  *
  * The heal script is opened once, ownership/mode is locked through that
  * descriptor, then executed via fexecve so it cannot be swapped between
@@ -38,13 +39,15 @@
 
 static int verb_allowed(const char *verb)
 {
-    return strcmp(verb, "selfheal") == 0 || strcmp(verb, "enc-enum") == 0;
+    return strcmp(verb, "selfheal") == 0
+        || strcmp(verb, "enc-enum") == 0
+        || strcmp(verb, "beep") == 0;
 }
 
 int main(int argc, char *argv[])
 {
     if (argc != 2 || !verb_allowed(argv[1])) {
-        fprintf(stderr, "synocr-helper: allowed verbs: selfheal, enc-enum (no extra arguments)\n");
+        fprintf(stderr, "synocr-helper: allowed verbs: selfheal, enc-enum, beep (no extra arguments)\n");
         return 1;
     }
 

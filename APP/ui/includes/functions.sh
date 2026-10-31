@@ -497,6 +497,15 @@ synocr_selfheal_via_helper() {
     "${helper}" selfheal
 }
 
+# Short DSM beep via setuid helper. Quiet when the helper is missing: the old
+# root check existed only to keep "Permission denied" out of the OCR log.
+synocr_beep_via_helper() {
+    local helper
+    synocr_helper_ready || return 0
+    helper="$(synocr_helper_bin)"
+    "${helper}" beep >/dev/null 2>&1 || true
+}
+
 # Encrypted-share wait (inotify boot race with Key Manager / auto-mount)
 # -------------------------------------------------------------------------- #
 # System key monitor_start_wait: seconds to wait (default 900). 0 = no wait.
@@ -1402,10 +1411,10 @@ synocr_python_max_version="3.12"
 synOCR_python_modules_legacy=(
     "DateTime==5.5"
     "dateparser==1.2.2"
-    "pikepdf==9.2.1"
     "Pillow==10.4.0"
-    "yq==4.1.2"
+    "pikepdf==9.2.1"
     "PyYAML==6.0.3"
+    "yq==4.1.2"
     "apprise==1.9.3"
     "pymupdf==1.24.11"
     "numpy==1.24.4"
@@ -1414,10 +1423,10 @@ synOCR_python_modules_legacy=(
 synOCR_python_modules_modern=(
     "DateTime==5.5"
     "dateparser==1.2.2"
-    "pikepdf==9.2.1"
     "Pillow==10.4.0"
-    "yq==4.1.2"
+    "pikepdf==9.2.1"
     "PyYAML==6.0.3"
+    "yq==4.1.2"
     "apprise==1.9.3"
     "pymupdf==1.24.11"
     "numpy==1.26.4"

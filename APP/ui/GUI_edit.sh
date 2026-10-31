@@ -22,7 +22,15 @@ new_profile ()
 # In this function a new profile record is written to the DB
 # Call: new_profile "profile name"
 # --------------------------------------------------------------
-    synocr_sqlite "INSERT INTO config ( profile ) VALUES ( '$1' )" >/dev/null
+    # SQLite keeps the column default from the original CREATE TABLE.
+    # Databases created with the legacy NameSyntax default (§yocr-…) still
+    # apply that default, so pass the current value explicitly only then.
+    _ns_schema=$(synocr_sqlite "SELECT sql FROM sqlite_master WHERE type='table' AND name='config';")
+    if printf '%s\n' "${_ns_schema}" | grep -F -q '§yocr-§mocr-§docr_§tag_§tit'; then
+        synocr_sqlite "INSERT INTO config ( profile, NameSyntax ) VALUES ( '$1', '§yocr4-§mocr-§docr_§tag_§tit' )" >/dev/null
+    else
+        synocr_sqlite "INSERT INTO config ( profile ) VALUES ( '$1' )" >/dev/null
+    fi
 }
 
 

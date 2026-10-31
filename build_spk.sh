@@ -165,15 +165,58 @@ exit 1
     }
     trap finish EXIT
 
-    if ! [ -x "$(command -v fakeroot)" ]; then
-        if [ $(whoami) != "root" ]; then
-            echo "ERROR: fakeroot are not installed and you are not root!" >&2
-            exit 1
+    # Root already owns archive members as uid 0. fakeroot is only for
+    # unprivileged builds; on recent macOS its SYSV message queues often fail
+    # with "No space left on device" (ENOSPC), which is not a full disk.
+    die_fakeroot() {
+        local errfile=$1
+        if grep -Eq 'No space left on device|lack of SYSV IPC|error while starting' "$errfile"; then
+            echo "ERROR: fakeroot cannot start." >&2
+            echo "System V message queues are unavailable. The message" >&2
+            echo "\"No space left on device\" does not mean the disk is full." >&2
+            echo "Run this script as root so the archive is packed without fakeroot:" >&2
+            echo "    sudo $0 ..." >&2
         else
-            FAKEROOT=""
+            echo "ERROR: fakeroot failed while creating the archive." >&2
         fi
-    else
+        if [ -s "$errfile" ]; then
+            echo >&2
+            echo "fakeroot reported:" >&2
+            cat "$errfile" >&2
+        fi
+        rm -f "$errfile"
+        exit 1
+    }
+
+    pack_tar() {
+        if [ -z "${FAKEROOT}" ]; then
+            tar "$@"
+            return
+        fi
+        local errfile
+        errfile=$(mktemp)
+        if ! "${FAKEROOT}" tar "$@" >"$errfile" 2>&1; then
+            die_fakeroot "$errfile"
+        fi
+        cat "$errfile"
+        rm -f "$errfile"
+    }
+
+    if [ "$(id -u)" -eq 0 ]; then
+        FAKEROOT=""
+        echo " - INFO: running as root, packing without fakeroot"
+    elif [ -x "$(command -v fakeroot)" ]; then
         FAKEROOT=$(command -v fakeroot)
+        fakeroot_err=$(mktemp)
+        if ! "${FAKEROOT}" true >"$fakeroot_err" 2>&1; then
+            die_fakeroot "$fakeroot_err"
+        fi
+        rm -f "$fakeroot_err"
+        echo " - INFO: not root, packing with fakeroot"
+    else
+        echo "ERROR: fakeroot is not installed and you are not root." >&2
+        echo "Install fakeroot, or run this script as root." >&2
+        exit 1
     fi
 
     TAR_CREATE_OPTS=(--format=ustar)
@@ -442,7 +485,7 @@ exit 1
 # Packing and dropping the current installation into the appropriate /Pack folder
     printf "\n - INFO: The archive package.tgz will be created ...\n"
 
-    $FAKEROOT tar "${TAR_CREATE_OPTS[@]}" -C "${build_tmp}/APP" \
+    pack_tar "${TAR_CREATE_OPTS[@]}" -C "${build_tmp}/APP" \
         --exclude='.DS_Store' --exclude='._*' \
         --exclude='*/__pycache__' --exclude='*.pyc' --exclude='*.pyo' \
         -czf "${build_tmp}/$PKG"/package.tgz .
@@ -458,7 +501,7 @@ exit 1
         TargetName="${project}_${set_spk_version}${beta_status}.spk"
     fi
     # $build_version
-    $FAKEROOT tar "${TAR_CREATE_OPTS[@]}" \
+    pack_tar "${TAR_CREATE_OPTS[@]}" \
         --exclude='.DS_Store' --exclude='._*' \
         --exclude='*/__pycache__' --exclude='*.pyc' --exclude='*.pyo' \
         -cf "${TargetName}" *

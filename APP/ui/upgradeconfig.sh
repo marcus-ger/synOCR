@@ -79,7 +79,7 @@ uuid=$(uuidgen)
                         \"taglist\" VARCHAR ,
                         \"searchAll\" VARCHAR DEFAULT ('no') ,
                         \"moveTaggedFiles\" VARCHAR DEFAULT ('useCatDir') ,
-                        \"NameSyntax\" VARCHAR DEFAULT ('§yocr-§mocr-§docr_§tag_§tit') ,
+                        \"NameSyntax\" VARCHAR DEFAULT ('§yocr4-§mocr-§docr_§tag_§tit') ,
                         \"ocropt\" VARCHAR DEFAULT ('-srd -l deu+eng') ,
                         \"dockercontainer\" VARCHAR DEFAULT ('jbarlow83/ocrmypdf:v12.7.2') ,
                         \"apprise_call\" VARCHAR ,
@@ -137,7 +137,7 @@ uuid=$(uuidgen)
         # write default data:
         # ---------------------------------------------------------------------
         synocr_sqlite "INSERT INTO system (key, value_1) VALUES ('timestamp', datetime('now','localtime'));"
-        synocr_sqlite "INSERT INTO system (key, value_1) VALUES ('db_version', '14');"
+        synocr_sqlite "INSERT INTO system (key, value_1) VALUES ('db_version', '15');"
         synocr_sqlite "INSERT INTO system (key, value_1) VALUES ('checkmon', '');"
         synocr_sqlite "INSERT INTO system (key, value_1) VALUES ('dockerimageupdate', '1');"
         synocr_sqlite "INSERT INTO system (key, value_1) VALUES ('global_pagecount', '0');"
@@ -1161,6 +1161,38 @@ fi
         if [[ "${error}" == 0 ]]; then
             # lift DB version:
             lift_db 13 14
+        fi
+        error=0
+    fi
+
+
+# DB-update from v14 to v15:
+# ---------------------------------------------------------------------
+    if [ "$(synocr_sqlite "SELECT value_1 FROM system WHERE key='db_version';")" -eq 14 ] ; then
+
+        # Rewrite the legacy rename token §yocr to §yocr4.
+        # §yocr4 and §yocr2 are parked first so a plain replace cannot turn them into §yocr44 / §yocr24.
+        # ---------------------------------------------------------------------
+        if ! sqlite3log=$(synocr_sqlite "UPDATE config
+                                   SET NameSyntax = replace(
+                                           replace(
+                                               replace(
+                                                   replace(
+                                                       replace(NameSyntax, '§yocr4', '§§KEEP4§§'),
+                                                       '§yocr2', '§§KEEP2§§'),
+                                                   '§yocr', '§yocr4'),
+                                               '§§KEEP4§§', '§yocr4'),
+                                           '§§KEEP2§§', '§yocr2')
+                                   WHERE instr(replace(replace(NameSyntax, '§yocr4', ''), '§yocr2', ''), '§yocr') > 0;" 2>&1); then
+            log="${log}
+            ➜ ERROR: NameSyntax token §yocr could not be rewritten to §yocr4
+              Log:   ${sqlite3log}"
+            error=1
+        fi
+
+        if [[ "${error}" == 0 ]]; then
+            # lift DB version:
+            lift_db 14 15
         fi
         error=0
     fi

@@ -2,7 +2,7 @@
 
 #################################################################################
 #   description:    Privileged actions for DSM 7 (via setuid synocr-helper).    #
-#   caller:         synocr-helper with verb selfheal | enc-enum only            #
+#   caller:         synocr-helper with verb selfheal | enc-enum | beep         #
 #   path:           /var/packages/synOCR/target/ui/includes/synocr-heal.sh      #
 #                                                                               #
 #   Do not derive APPDIR from $0: the helper runs this script via fexecve, so   #
@@ -133,6 +133,17 @@ do_enc_enum() {
     exit $?
 }
 
+# Short beep. /dev/ttyS1 is the Synology BIOS UART and is not writable by the
+# package user. No selfheal.log line: this runs once per finished PDF.
+# Missing device (some models, VDSM) is not an error.
+do_beep() {
+    require_root
+    if [ -c /dev/ttyS1 ]; then
+        echo 2 > /dev/ttyS1 2>/dev/null || true
+    fi
+    exit 0
+}
+
 do_selfheal() {
     local rc=0
     local python3_env dbPath
@@ -177,8 +188,11 @@ case "${1:-}" in
     enc-enum)
         do_enc_enum
         ;;
+    beep)
+        do_beep
+        ;;
     *)
-        echo "synocr-heal.sh: allowed verbs: selfheal, enc-enum (got '${1:-}')" >&2
+        echo "synocr-heal.sh: allowed verbs: selfheal, enc-enum, beep (got '${1:-}')" >&2
         exit 1
         ;;
 esac
